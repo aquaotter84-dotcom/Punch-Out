@@ -84,10 +84,12 @@ public class OrbitBackgroundWorker extends Worker {
             if (!prefs.getBoolean(OrbitBackgroundStore.KEY_ENABLED, false) || generation != prefs.getLong(OrbitBackgroundStore.KEY_GENERATION, 0) || isStopped()) return Result.success();
             String answer = "";
             String error = "";
+            boolean transientFailure = false;
             try { answer = complete(due, goal, workspace, key); }
             catch (Exception failure) {
                 // Do not persist raw provider responses: they could contain credentials or private data.
                 error = safeError(failure);
+                transientFailure = isTransient(failure);
             }
             JSONObject run = makeRun(due, goal, started, answer, error);
             synchronized (OrbitBackgroundStore.LOCK) {
@@ -96,6 +98,10 @@ public class OrbitBackgroundWorker extends Worker {
                 OrbitBackgroundStore.appendResult(context, run);
                 prefs.edit().putString(OrbitBackgroundStore.KEY_LAST_RUN, started)
                     .putString(OrbitBackgroundStore.KEY_LAST_ERROR, error).apply();
+                // A dropped socket or a provider hiccup is not this agent's turn used up. Clear only
+                // our own stamp so the next work window can try again. A real configuration failure
+                // keeps its stamp, so a bad key never retries in a loop.
+                if (transientFailure) clearAttempt(prefs, agentId, now);
             }
             try { notifyResult(context, due.optString("name", "Agent"), error.isEmpty(), run.getString("id")); }
             catch (RuntimeException ignored) { /* A disabled notification must not discard a saved run. */ }
@@ -106,7 +112,12 @@ public class OrbitBackgroundWorker extends Worker {
         }
     }
 
+    /** One agent per work window. When several agents are due, the one waiting longest goes first,
+     * so a repeatedly failing agent cannot monopolise every window.
+     */
     private static JSONObject findDueAgent(JSONArray agents, JSONObject attempts, long now) {
+        JSONObject longestWaiting = null;
+        long oldestAttempt = Long.MAX_VALUE;
         for (int i = 0; i < agents.length(); i++) {
             JSONObject agent = agents.optJSONObject(i);
             if (agent == null || !agent.optBoolean("enabled", false)) continue;
@@ -115,9 +126,36 @@ public class OrbitBackgroundWorker extends Worker {
             if (interval == 0 || agent.optString("recurringGoal").trim().isEmpty()) continue;
             long previous = Math.max(parseTimestamp(agent.optString("createdAt")), parseTimestamp(agent.optString("lastRunAt")));
             previous = Math.max(previous, attempts.optLong(agent.optString("id"), 0));
-            if (now - previous >= interval) return agent;
+            if (now - previous < interval || previous >= oldestAttempt) continue;
+            oldestAttempt = previous;
+            longestWaiting = agent;
         }
-        return null;
+        return longestWaiting;
+    }
+
+    /** Drops the pre-call stamp for this agent only, so the next work window may pick it up again. */
+    private static void clearAttempt(SharedPreferences prefs, String agentId, long stamp) {
+        try {
+            JSONObject attempts = new JSONObject(prefs.getString(OrbitBackgroundStore.KEY_ATTEMPTS, "{}"));
+            if (attempts.optLong(agentId, 0) == stamp) {
+                attempts.remove(agentId);
+                prefs.edit().putString(OrbitBackgroundStore.KEY_ATTEMPTS, attempts.toString()).apply();
+            }
+        } catch (JSONException ignored) { /* Keep the stamp; the normal interval still runs the agent. */ }
+    }
+
+    /** True when waiting and trying again is likely to help: the request never reached a healthy
+     * provider. A bad key, an unknown model, or a malformed answer is a configuration problem and
+     * is deliberately not retried in a loop.
+     */
+    private static boolean isTransient(Exception failure) {
+        if (failure instanceof java.io.IOException) return true; // timeouts, dropped sockets, DNS
+        String message = failure.getMessage();
+        if (message == null) return false;
+        java.util.regex.Matcher match = java.util.regex.Pattern.compile("HTTP (\\d{3})").matcher(message);
+        if (!match.find()) return false;
+        int code = Integer.parseInt(match.group(1));
+        return code == 408 || code == 425 || code == 429 || code >= 500;
     }
 
     private static SimpleDateFormat utcFormat() {
