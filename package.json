@@ -1,0 +1,13 @@
+{
+  "name": "ringside-87-frame-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A mobile-first, fixed-step 8-bit boxing tribute.",
+  "scripts": {
+    "dev": "python3 -m http.server 4173 --bind 0.0.0.0",
+    "start": "python3 -m http.server 4173 --bind 0.0.0.0",
+    "test": "node tests/smoke.mjs",
+    "check": "node --check src/main.js && node --check src/game.js && node --check src/art.js && node --check src/audio.js && npm test"
+  }
+}

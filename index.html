@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#090b14" />
+  <meta name="description" content="A frame-tight, mobile-first 8-bit boxing tribute built with original canvas art and Web Audio." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Ringside '87" />
+  <title>RINGSIDE ’87 — Frame Lab</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <a class="wordmark" href="#game" aria-label="Ringside 87 home">
+        <span class="wordmark-kicker">FRAME LAB / 001</span>
+        <span class="wordmark-main">RINGSIDE <i>’87</i></span>
+      </a>
+      <div class="topbar-meta" aria-label="Build status">
+        <span class="status-lamp"><b></b> 60 HZ LOCK</span>
+        <button class="icon-button" id="soundToggle" type="button" aria-label="Mute sound" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Zm12.2-.8a5 5 0 0 1 0 7.6M18.7 5a9 9 0 0 1 0 14"/></svg>
+        </button>
+        <button class="icon-button" id="fullscreenButton" type="button" aria-label="Enter fullscreen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="arena-layout">
+      <section class="console" id="game" aria-label="Playable boxing game">
+        <div class="console-topline">
+          <div>
+            <span class="eyebrow">MINOR CIRCUIT</span>
+            <strong>EXHIBITION 01</strong>
+          </div>
+          <div class="round-leds" aria-label="Round indicator">
+            <span class="active" id="roundLed1">1</span><span id="roundLed2">2</span><span id="roundLed3">3</span>
+          </div>
+        </div>
+
+        <div class="display-bezel">
+          <div class="display-inner">
+            <canvas id="gameCanvas" width="256" height="240" aria-label="Ringside 87 boxing match" role="img"></canvas>
+            <div class="crt-layer" aria-hidden="true"></div>
+            <div class="glass-glare" aria-hidden="true"></div>
+            <button id="playOverlay" class="play-overlay" type="button">
+              <span>TOUCH TO FIGHT</span>
+              <small>or press Enter</small>
+            </button>
+          </div>
+          <div class="bezel-mark">
+            <span>PIXEL SPORTS SYSTEM</span>
+            <span>256 × 240 / NTSC</span>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <button type="button" id="pauseButton"><span class="keycap">P</span><span>PAUSE</span></button>
+          <button type="button" id="restartButton"><span class="restart-glyph">↻</span><span>RESET</span></button>
+          <button type="button" id="helpButton"><span class="info-glyph">i</span><span>FRAME LAB</span></button>
+        </div>
+
+        <div class="controller" id="touchController" aria-label="Touch game controller">
+          <div class="dpad-zone">
+            <span class="control-label">MOVE / GUARD</span>
+            <div class="dpad" aria-label="Directional pad">
+              <button type="button" class="dpad-button dpad-up" data-action="up" aria-label="Up, aim at face"><span>▲</span></button>
+              <button type="button" class="dpad-button dpad-left" data-action="left" aria-label="Dodge left"><span>◀</span></button>
+              <div class="dpad-center" aria-hidden="true"><i></i></div>
+              <button type="button" class="dpad-button dpad-right" data-action="right" aria-label="Dodge right"><span>▶</span></button>
+              <button type="button" class="dpad-button dpad-down" data-action="down" aria-label="Block, double tap to duck"><span>▼</span></button>
+            </div>
+          </div>
+
+          <div class="system-buttons">
+            <button type="button" data-action="select" class="pill-button" aria-label="Coach select button"><i></i><span>COACH</span></button>
+            <button type="button" data-action="start" class="pill-button" aria-label="Start or star punch"><i></i><span>STAR</span></button>
+          </div>
+
+          <div class="action-zone">
+            <span class="control-label">PUNCH</span>
+            <div class="action-buttons">
+              <button type="button" class="action-button button-b" data-action="b" aria-label="B, left punch"><b>B</b><small>LEFT</small></button>
+              <button type="button" class="action-button button-a" data-action="a" aria-label="A, right punch"><b>A</b><small>RIGHT</small></button>
+            </div>
+          </div>
+        </div>
+
+        <p class="mobile-tip"><b>PRO TIP</b> Hold <span>▲</span> + punch for a face jab. Tap <span>▼</span> twice to duck.</p>
+      </section>
+
+      <aside class="ringside-panel" aria-label="Live ringside information">
+        <section class="fight-card">
+          <div class="panel-heading">
+            <span>OPPONENT / #02</span>
+            <span class="live-chip"><i></i> LIVE</span>
+          </div>
+          <div class="fighter-profile">
+            <div class="portrait" aria-hidden="true">
+              <div class="portrait-grid"></div>
+              <svg viewBox="0 0 100 100" role="presentation">
+                <path class="portrait-neck" d="M35 91 38 68h28l3 23Z"/>
+                <path class="portrait-head" d="M29 35c0-19 12-29 29-27 16 2 24 15 21 34l-5 26-17 14-18-9-8-22Z"/>
+                <path class="portrait-hair" d="M28 39 24 25l12 3-5-12 15 5 1-13 11 12L67 7l2 15 13-8-5 23-10-9-8 8-9-9-10 12Z"/>
+                <path class="portrait-face" d="M39 44h12m14 0h11M55 47l-3 13 10 2M47 70q11 8 21-1"/>
+                <circle cx="46" cy="45" r="2"/><circle cx="70" cy="45" r="2"/>
+                <path class="portrait-glove" d="M9 92c-2-16 4-29 17-28 11 1 15 14 10 27Z"/>
+              </svg>
+            </div>
+            <div class="fighter-copy">
+              <span class="rank">RANKED #2</span>
+              <h2>GLASS JOE</h2>
+              <p>Paris, France</p>
+              <dl>
+                <div><dt>RECORD</dt><dd>1–99</dd></div>
+                <div><dt>WEIGHT</dt><dd>110</dd></div>
+                <div><dt>KO</dt><dd>1</dd></div>
+              </dl>
+            </div>
+          </div>
+          <blockquote>“Watch the jaw! Don’t hit my jaw!”</blockquote>
+        </section>
+
+        <section class="coach-card">
+          <div class="panel-heading"><span>DOC’S CORNER</span><span id="coachState">SCOUTING</span></div>
+          <div class="coach-message">
+            <div class="coach-avatar" aria-hidden="true"><span></span></div>
+            <p id="coachTip">Joe reads your guard. Mix face jabs with body blows and stay loose.</p>
+          </div>
+        </section>
+
+        <section class="telemetry-card">
+          <div class="panel-heading"><span>FRAME TELEMETRY</span><span class="mono" id="fpsReadout">60.10 FPS</span></div>
+          <div class="telemetry-grid">
+            <div><span>GAME FRAME</span><strong id="frameReadout">000000</strong></div>
+            <div><span>LAST INPUT</span><strong id="inputReadout">—</strong></div>
+            <div><span>STATE</span><strong id="stateReadout">TITLE</strong></div>
+            <div><span>BEST KO</span><strong id="bestReadout">—</strong></div>
+          </div>
+          <div class="signal-line" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+        </section>
+
+        <section class="intel-card">
+          <div class="panel-heading"><span>THE 42.00 WINDOW</span><span>FIELD NOTES</span></div>
+          <ol>
+            <li><b>20 frames</b><span>per in-game second</span></li>
+            <li><b>20th hit</b><span>guaranteed star</span></li>
+            <li><b>16 frames</b><span>taunt vulnerability</span></li>
+            <li><b>first 4</b><span>frames can KO</span></li>
+          </ol>
+          <button type="button" id="openDossier">OPEN RESEARCH DOSSIER <span>↗</span></button>
+        </section>
+
+        <section class="keyboard-card">
+          <div class="panel-heading"><span>DESKTOP CORNER</span><span>KEYBOARD</span></div>
+          <div class="key-grid">
+            <div><kbd>←</kbd><kbd>→</kbd><span>DODGE</span></div>
+            <div><kbd>↓</kbd><span>BLOCK / DUCK ×2</span></div>
+            <div><kbd>Z</kbd><kbd>X</kbd><span>LEFT / RIGHT</span></div>
+            <div><kbd>↵</kbd><span>STAR PUNCH</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="site-footer">
+      <span>ORIGINAL CANVAS ART + SYNTHESIZED 8-BIT AUDIO</span>
+      <span>NO ROM · NO EMULATOR · INSTALLABLE OFFLINE</span>
+    </footer>
+  </main>
+
+  <dialog id="labDialog" class="lab-dialog">
+    <div class="dialog-shell">
+      <header>
+        <div><span class="eyebrow">RESEARCH DOSSIER / BUILD 001</span><h2>THE FRAME LAB</h2></div>
+        <button type="button" id="closeDossier" aria-label="Close research dossier">×</button>
+      </header>
+      <div class="dialog-body">
+        <section class="dossier-hero">
+          <span class="dossier-number">42<span>.00</span></span>
+          <div><h3>A fight measured in frames.</h3><p>This playable study rebuilds the rhythm, tells, counters, stamina and famous opening-fight trick as a deterministic 60 Hz web game.</p></div>
+        </section>
+        <div class="dossier-grid">
+          <article><span>01 / TIMING</span><h3>Console cadence</h3><p>The simulation advances in fixed 60.0988 Hz steps. The fight clock advances once every 20 frames, preserving the original’s roughly 3× game-time cadence rather than tying combat to display refresh.</p></article>
+          <article><span>02 / INPUT</span><h3>Six moves, zero mush</h3><p>Left and right dodge, block, double-tap duck, two hand-specific body blows, hold-up face jabs, and a star-powered uppercut. Inputs are buffered for responsive touch play.</p></article>
+          <article><span>03 / JOE</span><h3>Vive la frame data</h3><p>Joe retreats near 0:40. His return has a 16-frame interception window; the opening four frames trigger the special knockout route. Miss it and he gets back up.</p></article>
+          <article><span>04 / METERS</span><h3>Hearts are not health</h3><p>Stamina controls knockdowns. Hearts control whether Mac can throw. Blocked or missed attacks drain fighting spirit; clean evasions rebuild it. Stars fuel uppercuts.</p></article>
+        </div>
+        <section class="source-list">
+          <div><span>SOURCE 01</span><a href="https://www.nintendo.co.jp/clv/manuals/en/pdf/CLV-P-NAATE.pdf" target="_blank" rel="noreferrer">Nintendo instruction manual <b>↗</b></a></div>
+          <div><span>SOURCE 02</span><a href="https://tasvideos.org/GameResources/NES/MikeTysonsPunchout" target="_blank" rel="noreferrer">TASVideos mechanics archive <b>↗</b></a></div>
+          <div><span>SOURCE 03</span><a href="https://tasvideos.org/GameResources/NES/MikeTysonsPunchout/GlassJoeStrats" target="_blank" rel="noreferrer">Glass Joe frame strategies <b>↗</b></a></div>
+          <div><span>SOURCE 04</span><a href="https://github.com/nmikstas/mike-tysons-punch-out-disassembly" target="_blank" rel="noreferrer">NES disassembly research <b>↗</b></a></div>
+        </section>
+        <p class="provenance"><b>ASSET PROVENANCE</b> Every visual, animation and sound in this build is generated from original code. Reference material informed behavior and composition; no ROM, ripped sprite, recording or emulator is included.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

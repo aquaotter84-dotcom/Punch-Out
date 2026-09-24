@@ -1,0 +1,20 @@
+{
+  "name": "Ringside '87 — Frame Lab",
+  "short_name": "Ringside '87",
+  "description": "A frame-tight, mobile-first 8-bit boxing tribute.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080a10",
+  "theme_color": "#090b14",
+  "orientation": "any",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
