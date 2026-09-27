@@ -66,6 +66,14 @@ export interface AgentRun {
   memoryReview?: 'pending' | 'saved' | 'dismissed'
 }
 
+export interface ChatMessage {
+  id: string
+  agentId: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
 export interface AISettings {
   provider: 'openai' | 'openrouter' | 'custom'
   endpoint: string
@@ -77,6 +85,7 @@ export interface Workspace {
   memories: Memory[]
   integrations: Integration[]
   runs: AgentRun[]
+  chatMessages: ChatMessage[]
   settings: AISettings
   dismissedWelcome: boolean
 }

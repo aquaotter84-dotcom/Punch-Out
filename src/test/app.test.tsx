@@ -174,14 +174,17 @@ describe('Orbit workspace', () => {
     saveWorkspace(workspace)
     sessionStorage.setItem('orbit-ai-key-session', 'test-key')
     const requests: string[] = []
-    vi.stubGlobal('fetch', vi.fn(async (_url: string, options: RequestInit) => {
-      const request = JSON.parse(options.body as string) as { url: string; body: string }
-      requests.push(request.url)
-      const messages = (JSON.parse(request.body) as { messages: Array<{ role: string }> }).messages
+    vi.stubGlobal('fetch', vi.fn(async (url: string, options: RequestInit) => {
+      // requestExternal tries a direct browser request first and falls back to /api/relay.
+      const raw = JSON.parse(options.body as string) as { url?: string; body?: string; messages?: Array<{ role: string }> }
+      const isRelay = typeof url === 'string' && url.endsWith('/api/relay')
+      requests.push(isRelay ? raw.url! : url)
+      const messages = ((isRelay ? JSON.parse(raw.body!) : raw) as { messages: Array<{ role: string }> }).messages
       const completion = messages.some(message => message.role === 'tool')
         ? { choices: [{ message: { role: 'assistant', content: 'I did not send that note.' } }] }
         : { choices: [{ message: { role: 'assistant', content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'tool_hook', arguments: '{"input":"Private launch notes"}' } }] } }] }
-      return new Response(JSON.stringify({ status: 200, body: JSON.stringify(completion) }), { status: 200 })
+      const text = JSON.stringify(completion)
+      return new Response(isRelay ? JSON.stringify({ status: 200, body: text }) : text, { status: 200 })
     }))
     const user = userEvent.setup()
     render(<App />)

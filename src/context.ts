@@ -27,6 +27,10 @@ export interface OrbitContextValue {
   openResult: (id: string) => void
   reviewMemory: (runId: string, action: 'save' | 'dismiss', content?: string) => void
   startRun: (agentId: string, goal: string, preview?: boolean, scheduled?: boolean) => Promise<void>
+  sendChatMessage: (agentId: string, text: string) => Promise<void>
+  clearChat: (agentId: string) => void
+  /** The agent id currently waiting on a chat reply, or null. */
+  chatSendingId: string | null
   toast: (message: string) => void
 }
 

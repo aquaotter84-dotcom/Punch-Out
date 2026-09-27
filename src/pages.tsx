@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
-import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, Bell, Bot, Brain, CalendarDays, Check, CheckCircle2, ChevronRight, Clock3, Download, Eye, EyeOff, Globe2, KeyRound, Link2, MoreHorizontal, Pause, Pin, Play, Plus, Search, Settings2, ShieldCheck, Sparkles, Upload, Wrench, X, Zap } from 'lucide-react'
+import { Activity, ArrowLeft, ArrowRight, ArrowUpRight, Bell, Bot, Brain, CalendarDays, Check, CheckCircle2, ChevronRight, Clock3, Download, Eye, EyeOff, Globe2, KeyRound, Link2, MoreHorizontal, Pause, Pin, Play, Plus, Search, Send, Settings2, ShieldCheck, Sparkles, Trash2, Upload, Wrench, X, Zap } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { useOrbit } from './context'
 import { isValidWorkspace } from './storage'
 import { needsMemoryReview } from './memory'
@@ -143,9 +144,51 @@ export function MemoryPage() {
   </div>
 }
 
+function ChatTab({ agent }: { agent: Agent }) {
+  const { workspace, sendChatMessage, clearChat, chatSendingId, apiKey, navigate } = useOrbit()
+  const [draft, setDraft] = useState('')
+  const messages = (workspace.chatMessages ?? []).filter(message => message.agentId === agent.id)
+  const sending = chatSendingId === agent.id
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const list = listRef.current
+    if (list) list.scrollTop = list.scrollHeight
+  }, [messages.length, sending])
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    const text = draft.trim()
+    if (!text || sending) return
+    setDraft('')
+    await sendChatMessage(agent.id, text)
+  }
+
+  return <div className="detail-tab-content chat-tab">
+    <SectionHeading title={`Chat with ${agent.name}`} subtitle="A running conversation. It keeps the thread and your saved memories in mind." action={messages.length > 0 ? <button className="text-button" onClick={() => clearChat(agent.id)}><Trash2 size={15} /> Clear chat</button> : undefined} />
+    <div className="chat-panel">
+      <div className="chat-list" ref={listRef} aria-live="polite">
+        {messages.length === 0 && !sending ? <div className="chat-empty"><AgentAvatar agent={agent} size="large" /><h3>Say hello to {agent.name}</h3><p>Ask a question, think out loud, or pick up where you left off. {agent.name} follows its instructions, remembers your conversation, and can use its connected tools.</p></div>
+          : messages.map(message => <div key={message.id} className={`chat-row chat-row--${message.role}`}>
+            {message.role === 'assistant' && <AgentAvatar agent={agent} size="tiny" />}
+            <div className={`chat-bubble chat-bubble--${message.role}`}>
+              {message.role === 'assistant' ? <div className="prose"><ReactMarkdown>{message.content}</ReactMarkdown></div> : <p>{message.content}</p>}
+              <time>{timeAgo(message.createdAt)}</time>
+            </div>
+          </div>)}
+        {sending && <div className="chat-row chat-row--assistant"><AgentAvatar agent={agent} size="tiny" /><div className="chat-bubble chat-bubble--assistant chat-typing" aria-label={`${agent.name} is typing`}><span /><span /><span /></div></div>}
+      </div>
+      {!apiKey && <div className="run-key-notice"><KeyRound size={18} /><span><strong>Connect your AI to start chatting</strong><small>Add a provider key in Settings, then come back here.</small></span><button onClick={() => navigate('settings')}>Settings <ArrowRight size={14} /></button></div>}
+      <form className="chat-composer" onSubmit={submit}>
+        <input value={draft} onChange={event => setDraft(event.target.value)} placeholder={`Message ${agent.name}...`} aria-label={`Message ${agent.name}`} maxLength={4000} />
+        <button type="submit" className="button button--dark chat-send" disabled={!draft.trim() || sending} aria-label="Send message"><Send size={17} /></button>
+      </form>
+    </div>
+  </div>
+}
+
 export function AgentDetailPage({ agent }: { agent: Agent }) {
   const { workspace, background, navigate, openAgentEditor, openRunComposer, openMemoryEditor, setWorkspace } = useOrbit()
-  const [tab, setTab] = useState<'overview' | 'memory' | 'runs' | 'settings'>('overview')
+  const [tab, setTab] = useState<'overview' | 'chat' | 'memory' | 'runs' | 'settings'>('overview')
   const memories = workspace.memories.filter(memory => memory.agentId === agent.id).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt.localeCompare(a.createdAt))
   const runs = workspace.runs.filter(run => run.agentId === agent.id)
   const pendingRuns = runs.filter(needsMemoryReview)
@@ -154,7 +197,7 @@ export function AgentDetailPage({ agent }: { agent: Agent }) {
   return <div className="page detail-page">
     <button className="back-link" onClick={() => navigate('agents')}><ArrowLeft size={17} /> All agents</button>
     <div className="detail-header"><div className="detail-header-identity"><AgentAvatar agent={agent} size="large" /><div><span className="eyebrow">YOUR AI AGENT</span><h1>{agent.name} <span className={`agent-status ${agent.enabled ? '' : 'agent-status--paused'}`}><span />{agent.enabled ? 'Ready' : 'Paused'}</span></h1><p>{agent.role} <span className="meta-dot">·</span> Created {fullDate(agent.createdAt)}</p></div></div><div className="detail-header-actions"><button className="button button--outline" onClick={() => openAgentEditor(agent.id)}><Settings2 size={17} /> Edit agent</button><button className="button button--dark" onClick={() => openRunComposer(agent.id)}><Play size={16} fill="currentColor" /> Run agent</button></div></div>
-    <div className="detail-tabs" role="tablist">{(['overview', 'memory', 'runs', 'settings'] as const).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} role="tab" aria-selected={tab === item}>{item === 'runs' ? 'Activity' : item.charAt(0).toUpperCase() + item.slice(1)}{item === 'memory' && <span>{memories.length + pendingRuns.length}</span>}</button>)}</div>
+    <div className="detail-tabs" role="tablist">{(['overview', 'chat', 'memory', 'runs', 'settings'] as const).map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} role="tab" aria-selected={tab === item}>{item === 'runs' ? 'Activity' : item.charAt(0).toUpperCase() + item.slice(1)}{item === 'memory' && <span>{memories.length + pendingRuns.length}</span>}</button>)}</div>
     {tab === 'overview' && <div className="detail-layout"><div className="detail-primary">
       <div className="detail-task-card"><span className="detail-task-icon"><Sparkles size={22} /></span><h2>What should {agent.name} work on?</h2><p>Give your agent a goal. It will use its instructions, memories, and connected tools to help you get there.</p><button onClick={() => openRunComposer(agent.id)}>Give {agent.name} a task <ArrowUpRight size={18} /></button></div>
       <section className="panel detail-about"><SectionHeading title={`About ${agent.name}`} action={<button className="icon-button" onClick={() => openAgentEditor(agent.id)} aria-label="Edit agent"><MoreHorizontal size={20} /></button>} /><p className="detail-description">{agent.description}</p><div className="detail-instructions"><span>INSTRUCTIONS</span><p>{agent.instructions}</p></div></section>
@@ -162,6 +205,7 @@ export function AgentDetailPage({ agent }: { agent: Agent }) {
     </div><div className="detail-sidebar"><section className="panel detail-snapshot"><h3>At a glance</h3><div className="snapshot-stats"><div><strong>{completed.toString().padStart(2, '0')}</strong><span>Completed</span></div><div><strong>{memories.length.toString().padStart(2, '0')}</strong><span>Memories</span></div></div><div className="snapshot-line"><span><CalendarDays size={17} /> Schedule</span><strong>{agent.schedule === 'manual' ? 'On demand' : agent.schedule === 'hourly' ? 'Hourly' : 'Daily'}</strong></div><div className="snapshot-line"><span><Clock3 size={17} /> Last run</span><strong>{agent.lastRunAt ? timeAgo(agent.lastRunAt) : 'Not yet'}</strong></div><div className="snapshot-line"><span><Wrench size={17} /> Tools</span><strong>{tools.length} connected</strong></div></section>
       <section className="panel detail-tools"><SectionHeading title="Connected tools" action={<button className="text-button" onClick={() => openAgentEditor(agent.id)}>Manage <ArrowUpRight size={15} /></button>} />{tools.length ? <div className="detail-tool-list">{tools.map(tool => <div key={tool.id}><ToolAvatar icon={tool.icon} size="small" /><span>{tool.name}</span><Check size={16} /></div>)}</div> : <div className="detail-tool-empty"><span><Link2 size={21} /></span><p>No tools connected yet. Add one to unlock more possibilities.</p><button onClick={() => openAgentEditor(agent.id)}>Add a tool <ArrowRight size={15} /></button></div>}</section>
     </div></div>}
+    {tab === 'chat' && <ChatTab agent={agent} />}
     {tab === 'memory' && <div className="detail-tab-content"><SectionHeading title={`${agent.name}'s memory`} subtitle="The context this agent takes into every real run." action={<button className="button button--dark button--small" onClick={() => openMemoryEditor()}><Plus size={16} /> Add memory</button>} />{pendingRuns.length > 0 && <div className="agent-pending-reviews"><SectionHeading title="Waiting for your review" subtitle="These won't be used until you save them." />{pendingRuns.map(run => <MemoryReviewCard key={run.id} run={run} compact />)}</div>}<div className="memory-list">{memories.length ? memories.map(memory => <MemoryRow key={memory.id} memory={memory} />) : <EmptyState icon={<Brain size={25} />} title="Nothing to remember yet" description="Add a detail that will help this agent do better work." action={<button className="button button--dark" onClick={() => openMemoryEditor()}>Add memory</button>} />}</div></div>}
     {tab === 'runs' && <div className="detail-tab-content"><SectionHeading title="Run history" subtitle="Every task, from first thought to final answer." action={<button className="button button--dark button--small" onClick={() => openRunComposer(agent.id)}><Play size={15} /> New run</button>} /><div className="panel">{runs.length ? <ActivityRows runs={runs} /> : <EmptyState icon={<Activity size={25} />} title="No activity yet" description="Run this agent to start a new chapter." />}</div></div>}
     {tab === 'settings' && <div className="detail-tab-content detail-settings"><section className="panel"><SectionHeading title="Agent settings" subtitle="The little things that make this agent yours." action={<button className="button button--outline button--small" onClick={() => openAgentEditor(agent.id)}>Edit details <ArrowUpRight size={15} /></button>} /><div className="settings-info-row"><span>Role</span><strong>{agent.role}</strong></div><div className="settings-info-row"><span>Schedule</span><strong>{agent.schedule === 'manual' ? 'Only when I run it' : `${agent.schedule === 'hourly' ? 'About hourly' : 'About daily'} ${background.status?.enabled ? '(Android background)' : '(while app is open)'}`}</strong></div>{agent.schedule !== 'manual' && <div className="settings-info-row"><span>Recurring goal</span><strong>{agent.recurringGoal || 'Not set'}</strong></div>}<div className="settings-info-row"><span>Connected tools</span><strong>{tools.length}</strong></div><div className="settings-info-row"><span>Status</span><strong>{agent.enabled ? 'Active' : 'Paused'}</strong></div></section><section className="panel pause-panel"><div><h3>{agent.enabled ? 'Need a little pause?' : 'Ready to get back to it?'}</h3><p>{agent.enabled ? 'Pausing stops scheduled runs. You can still edit this agent anytime.' : 'Resume this agent to allow scheduled runs again.'}</p></div><button className="button button--outline" onClick={() => setWorkspace(current => ({ ...current, agents: current.agents.map(item => item.id === agent.id ? { ...item, enabled: !item.enabled } : item) }))}>{agent.enabled ? <Pause size={16} /> : <Play size={16} />}{agent.enabled ? 'Pause agent' : 'Resume agent'}</button></section></div>}

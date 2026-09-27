@@ -1,4 +1,4 @@
-import type { Workspace, Agent, Memory, Integration, AgentRun } from './types'
+import type { Workspace, Agent, Memory, Integration, AgentRun, ChatMessage } from './types'
 
 const STORAGE_KEY = 'orbit-workspace-v1'
 const RECOVERY_KEY = 'orbit-workspace-v1-recovery'
@@ -53,6 +53,7 @@ export function initialWorkspace(): Workspace {
   ]
   return {
     agents, memories, integrations: [], runs,
+    chatMessages: [],
     settings: { provider: 'openai', endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
     dismissedWelcome: false,
   }
@@ -83,10 +84,20 @@ export function isValidRun(value: unknown): value is AgentRun {
   return typeof run.id === 'string' && typeof run.agentId === 'string' && typeof run.goal === 'string' && typeof run.output === 'string' && typeof run.status === 'string' && typeof run.createdAt === 'string' && Array.isArray(run.steps) && (run.suggestedMemory === undefined || typeof run.suggestedMemory === 'string') && (run.memoryReview === undefined || ['pending', 'saved', 'dismissed'].includes(run.memoryReview))
 }
 
+export function isValidChatMessage(value: unknown): value is ChatMessage {
+  if (!value || typeof value !== 'object') return false
+  const message = value as Partial<ChatMessage>
+  return typeof message.id === 'string' && typeof message.agentId === 'string'
+    && (message.role === 'user' || message.role === 'assistant')
+    && typeof message.content === 'string' && typeof message.createdAt === 'string'
+}
+
 export function isValidWorkspace(value: unknown): value is Workspace {
   if (!value || typeof value !== 'object') return false
   const data = value as Partial<Workspace>
   if (!Array.isArray(data.agents) || !Array.isArray(data.memories) || !Array.isArray(data.integrations) || !Array.isArray(data.runs) || !data.settings) return false
+  // chatMessages is optional: older workspaces and exports predate it and default to empty.
+  if (data.chatMessages !== undefined && (!Array.isArray(data.chatMessages) || !data.chatMessages.every(isValidChatMessage))) return false
   return data.agents.every(isValidAgent) &&
     data.memories.every(isValidMemory) &&
     data.integrations.every(isValidIntegration) &&
@@ -110,7 +121,8 @@ export function salvageWorkspace(value: unknown): { workspace: Workspace; droppe
   const memories = salvage(data.memories, isValidMemory)
   const integrations = salvage(data.integrations, isValidIntegration)
   const runs = salvage(data.runs, isValidRun)
-  const dropped = agents.dropped + memories.dropped + integrations.dropped + runs.dropped
+  const chat = salvage(data.chatMessages, isValidChatMessage)
+  const dropped = agents.dropped + memories.dropped + integrations.dropped + runs.dropped + chat.dropped
   const settings = data.settings
   const usableSettings = settings && ['openai', 'openrouter', 'custom'].includes(settings.provider) && typeof settings.endpoint === 'string' && typeof settings.model === 'string'
   const missingSection = [data.agents, data.memories, data.integrations, data.runs].some(candidate => !Array.isArray(candidate))
@@ -122,6 +134,7 @@ export function salvageWorkspace(value: unknown): { workspace: Workspace; droppe
       memories: memories.kept.length || memories.dropped === 0 ? memories.kept : starter.memories,
       integrations: integrations.kept.length || integrations.dropped === 0 ? integrations.kept : starter.integrations,
       runs: runs.kept.length || runs.dropped === 0 ? runs.kept : starter.runs,
+      chatMessages: chat.kept,
       settings: usableSettings ? settings : starter.settings,
       dismissedWelcome: typeof data.dismissedWelcome === 'boolean' ? data.dismissedWelcome : false,
     },
@@ -139,7 +152,7 @@ export function loadWorkspace(): Workspace {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const data: unknown = JSON.parse(raw)
-      if (isValidWorkspace(data)) return { ...data, dismissedWelcome: data.dismissedWelcome ?? false }
+      if (isValidWorkspace(data)) return { ...data, chatMessages: data.chatMessages ?? [], dismissedWelcome: data.dismissedWelcome ?? false }
       // Remember exactly what was stored before anything can overwrite it, then salvage what still parses.
       try { if (!localStorage.getItem(RECOVERY_KEY)) localStorage.setItem(RECOVERY_KEY, raw) } catch { /* Read-only storage; the original key is still intact. */ }
       const salvaged = salvageWorkspace(data)

@@ -5,10 +5,10 @@ import { Activity, ArrowRight, Bell, Bot, Brain, ChevronDown, ChevronRight, Circ
 import { OrbitContext } from './context'
 import { Brand } from './ui'
 import { getAIKey, initialWorkspace, loadWorkspace, saveAIKey, saveWorkspace } from './storage'
-import { executeAgent, previewAgent } from './runtime'
+import { executeAgent, previewAgent, chatWithAgent } from './runtime'
 import { needsMemoryReview, suggestMemory } from './memory'
 import { backgroundSnapshot, mergeBackgroundRuns, OrbitBackground, supportsBackgroundRuns, type BackgroundStatus } from './background'
-import { newId, type AgentRun, type Integration, type Page, type Workspace } from './types'
+import { newId, type AgentRun, type ChatMessage, type Integration, type Page, type Workspace } from './types'
 import { OverviewPage, AgentsPage, AgentDetailPage, MemoryPage, IntegrationsPage, ActivityPage, SettingsPage } from './pages'
 import { AgentEditor, MemoryEditor, IntegrationEditor, RunComposer, ResultDialog, SearchDialog, ToolApprovalDialog } from './dialogs'
 
@@ -36,6 +36,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [toolApproval, setToolApproval] = useState<PendingToolApproval | null>(null)
+  const [chatSendingId, setChatSendingId] = useState<string | null>(null)
   const [backgroundStatus, setBackgroundStatus] = useState<BackgroundStatus | null>(null)
   const [backgroundBusy, setBackgroundBusy] = useState(false)
   const backgroundEnabledRef = useRef(false)
@@ -339,6 +340,54 @@ export default function App() {
   }
   startRunRef.current = startRun
 
+  async function sendChatMessage(agentId: string, text: string) {
+    const data = workspaceRef.current
+    const agent = data.agents.find(item => item.id === agentId)
+    const trimmed = text.trim()
+    if (!agent || !trimmed) return
+    if (runningRef.current) { toast('Another agent is running. Try again in a moment.'); return }
+    if (!apiKeyRef.current.trim()) { toast('Add your AI provider key in Settings to chat.'); navigate('settings'); return }
+    runningRef.current = true
+    setChatSendingId(agentId)
+    const now = new Date().toISOString()
+    const userMessage: ChatMessage = { id: newId(), agentId, role: 'user', content: trimmed, createdAt: now }
+    const withUser = [...(data.chatMessages ?? []), userMessage]
+    // Keep each agent's thread bounded so the stored workspace stays small.
+    const agentThread = withUser.filter(message => message.agentId === agentId)
+    const chatMessages = agentThread.length > 200
+      ? withUser.filter(message => message.agentId !== agentId || agentThread.slice(-200).includes(message))
+      : withUser
+    setWorkspace(current => ({ ...current, chatMessages }))
+    try {
+      const history = chatMessages.filter(message => message.agentId === agentId)
+      const memories = data.memories.filter(memory => memory.agentId === agentId)
+      const tools = data.integrations.filter(tool => tool.enabled && agent.toolIds.includes(tool.id))
+      const reply = await chatWithAgent({
+        agent,
+        history: history.map(message => ({ role: message.role, content: message.content })),
+        memories, tools, settings: data.settings, apiKey: apiKeyRef.current,
+        onApproval: (tool, input) => requestToolApproval(agent.name, tool, input),
+      })
+      const assistantMessage: ChatMessage = { id: newId(), agentId, role: 'assistant', content: reply, createdAt: new Date().toISOString() }
+      setWorkspace(current => ({ ...current, chatMessages: [...(current.chatMessages ?? []), assistantMessage] }))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Something went wrong.'
+      const assistantMessage: ChatMessage = { id: newId(), agentId, role: 'assistant', content: `I couldn't reply just now: ${message}`, createdAt: new Date().toISOString() }
+      setWorkspace(current => ({ ...current, chatMessages: [...(current.chatMessages ?? []), assistantMessage] }))
+    } finally {
+      runningRef.current = false
+      setChatSendingId(null)
+    }
+  }
+
+  function clearChat(agentId: string) {
+    const agent = workspaceRef.current.agents.find(item => item.id === agentId)
+    if (!agent) return
+    if (!window.confirm(`Clear your chat with ${agent.name}? This cannot be undone.`)) return
+    setWorkspace(current => ({ ...current, chatMessages: (current.chatMessages ?? []).filter(message => message.agentId !== agentId) }))
+    toast(`Chat with ${agent.name} cleared`)
+  }
+
   function reviewMemory(runId: string, action: 'save' | 'dismiss', content?: string) {
     const run = workspaceRef.current.runs.find(item => item.id === runId)
     if (!run || !needsMemoryReview(run)) return
@@ -365,6 +414,7 @@ export default function App() {
     openRunComposer: (id: string) => setRunComposerId(id),
     openResult: (id: string) => setResultId(id),
     reviewMemory, startRun, toast,
+    sendChatMessage, clearChat, chatSendingId,
   }
   const pendingMemoryCount = workspace.runs.filter(needsMemoryReview).length
   const currentAgent = selectedAgentId ? workspace.agents.find(item => item.id === selectedAgentId) : null
