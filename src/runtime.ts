@@ -25,11 +25,35 @@ export async function requestExternal({ url, method, headers = {}, body }: Reque
     return text
   }
 
+  // The /api/relay endpoint only exists on the Vite dev server. Production
+  // static hosts (Railway, etc.) don't have it, so try a direct browser
+  // request first. That works for APIs that allow CORS (Gemini does) and
+  // falls back to the relay when the browser blocks the direct call.
+  try {
+    const direct = await fetch(url, {
+      method,
+      headers,
+      body: method === 'POST' ? body : undefined,
+    })
+    const text = await direct.text()
+    if (direct.status < 200 || direct.status >= 300) throw new Error(formatAPIError(text, direct.status))
+    return text
+  } catch (error) {
+    // A real API error (bad key, bad model, quota) should surface as-is.
+    if (error instanceof Error && error.message.startsWith('API error')) throw error
+    // Otherwise the direct request was blocked (usually CORS) — try the relay.
+  }
+
   const response = await fetch('/api/relay', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, method, headers, body }),
   })
-  const payload = await response.json() as { status?: number; body?: string; error?: string }
+  let payload: { status?: number; body?: string; error?: string }
+  try {
+    payload = await response.json() as { status?: number; body?: string; error?: string }
+  } catch {
+    throw new Error('The /api/relay endpoint is not available on this deployment. Run the app locally with `npm run dev`, or use an API that allows direct browser requests.')
+  }
   if (!response.ok) throw new Error(payload.error ?? 'The API request could not be completed.')
   if (!payload.status || payload.status < 200 || payload.status >= 300) {
     throw new Error(formatAPIError(payload.body ?? '', payload.status ?? 500))
