@@ -122,4 +122,30 @@ describe('agent runtime', () => {
     expect(completions[0].messages[1].content).toBe('Hi Atlas')
     expect(completions[0].messages[0].content).toContain('Atlas')
   })
+
+  it('keeps ephemeral UI notices out of the model context', async () => {
+    const workspace = initialWorkspace()
+    const seen: Array<{ messages: Array<{ role: string; content: string | null }> }> = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, options: RequestInit) => {
+      seen.push(JSON.parse(options.body as string) as { messages: Array<{ role: string; content: string | null }> })
+      return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'Still here.' } }] }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+    const reply = await chatWithAgent({
+      agent: workspace.agents[0],
+      history: [
+        { role: 'user', content: 'Hello?' },
+        { role: 'assistant', content: "I couldn't reply just now: network hiccup", ephemeral: true },
+        { role: 'user', content: 'Are you there?' },
+      ],
+      memories: [], tools: [],
+      settings: workspace.settings, apiKey: 'test-key',
+    })
+    expect(reply).toContain('Still here')
+    // The failure notice must never reach the model: system prompt plus the two real turns only.
+    expect(seen).toHaveLength(1)
+    expect(seen[0].messages.map(message => message.role)).toEqual(['system', 'user', 'user'])
+    expect(seen[0].messages.every(message => message.content !== "I couldn't reply just now: network hiccup")).toBe(true)
+  })
 })

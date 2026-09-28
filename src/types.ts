@@ -72,6 +72,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   createdAt: string
+  /** UI-only notices (e.g. reply failures) that stay visible in the thread but are never sent to the model. */
+  ephemeral?: boolean
 }
 
 export interface AISettings {

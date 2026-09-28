@@ -364,7 +364,8 @@ export default function App() {
       const tools = data.integrations.filter(tool => tool.enabled && agent.toolIds.includes(tool.id))
       const reply = await chatWithAgent({
         agent,
-        history: history.map(message => ({ role: message.role, content: message.content })),
+        // chatWithAgent keeps ephemeral UI notices out of the model's context.
+        history: history.map(message => ({ role: message.role, content: message.content, ephemeral: message.ephemeral })),
         memories, tools, settings: data.settings, apiKey: apiKeyRef.current,
         onApproval: (tool, input) => requestToolApproval(agent.name, tool, input),
       })
@@ -372,7 +373,7 @@ export default function App() {
       setWorkspace(current => ({ ...current, chatMessages: [...(current.chatMessages ?? []), assistantMessage] }))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Something went wrong.'
-      const assistantMessage: ChatMessage = { id: newId(), agentId, role: 'assistant', content: `I couldn't reply just now: ${message}`, createdAt: new Date().toISOString() }
+      const assistantMessage: ChatMessage = { id: newId(), agentId, role: 'assistant', content: `I couldn't reply just now: ${message}`, createdAt: new Date().toISOString(), ephemeral: true }
       setWorkspace(current => ({ ...current, chatMessages: [...(current.chatMessages ?? []), assistantMessage] }))
     } finally {
       runningRef.current = false
