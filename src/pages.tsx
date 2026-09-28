@@ -179,7 +179,7 @@ function ChatTab({ agent }: { agent: Agent }) {
       </div>
       {!apiKey && <div className="run-key-notice"><KeyRound size={18} /><span><strong>Connect your AI to start chatting</strong><small>Add a provider key in Settings, then come back here.</small></span><button onClick={() => navigate('settings')}>Settings <ArrowRight size={14} /></button></div>}
       <form className="chat-composer" onSubmit={submit}>
-        <input value={draft} onChange={event => setDraft(event.target.value)} placeholder={`Message ${agent.name}...`} aria-label={`Message ${agent.name}`} maxLength={4000} />
+        <input value={draft} onChange={event => setDraft(event.target.value)} onFocus={event => event.currentTarget.scrollIntoView({ block: 'nearest' })} placeholder={`Message ${agent.name}...`} aria-label={`Message ${agent.name}`} maxLength={4000} />
         <button type="submit" className="button button--dark chat-send" disabled={!draft.trim() || sending} aria-label="Send message"><Send size={17} /></button>
       </form>
     </div>
